@@ -28,7 +28,7 @@ Scripts Bash de sauvegarde et de restauration de bases PostgreSQL avec gestion f
 ### 1. Cloner le dépôt
 ```bash
 git clone https://github.com/themaire/backup_restore_pgsql.git
-cd backup_bdd
+cd backup_restore_pgsql
 ```
 
 ### 2. Configurer les credentials
