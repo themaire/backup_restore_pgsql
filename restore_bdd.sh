@@ -17,6 +17,47 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Configuration des logs
+LOG_DIR="/var/log/backup_bdd"
+LOG_FILE="${LOG_DIR}/restore_bdd.log"
+
+# -----------------------------------------------------------------------------
+# Initialisation des logs
+# -----------------------------------------------------------------------------
+function init_log() {
+    # Créer le répertoire de logs s'il n'existe pas
+    if [ ! -d "$LOG_DIR" ]; then
+        sudo mkdir -p "$LOG_DIR" 2>/dev/null || mkdir -p "$LOG_DIR" 2>/dev/null
+        sudo chmod 755 "$LOG_DIR" 2>/dev/null
+    fi
+    
+    # Vérifier qu'on peut écrire dans le fichier de log
+    if ! touch "$LOG_FILE" 2>/dev/null; then
+        sudo touch "$LOG_FILE" 2>/dev/null
+        sudo chmod 666 "$LOG_FILE" 2>/dev/null
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Fonction de logging
+# -----------------------------------------------------------------------------
+function log_message() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    echo "[$timestamp] [$level] $message" >> "$LOG_FILE" 2>/dev/null
+}
+
+# -----------------------------------------------------------------------------
+# Nettoyage des fichiers temporaires
+# -----------------------------------------------------------------------------
+function cleanup_temp_files() {
+    # Supprimer les anciens fichiers temporaires de restauration (> 1 jour)
+    find /tmp -name "restore_*.sql" -mtime +1 -delete 2>/dev/null
+    find /tmp -name "restore_*.log" -mtime +1 -delete 2>/dev/null
+    find /tmp -name "restore_verbose_*.log" -mtime +1 -delete 2>/dev/null
+}
+
 # -----------------------------------------------------------------------------
 # Vérification des dépendances
 # -----------------------------------------------------------------------------
@@ -250,6 +291,9 @@ function check_schema_exists() {
 # -----------------------------------------------------------------------------
 function restore_schema() {
     local temp_file="/tmp/restore_${selected_schema}_$$.sql"
+    local verbose_log="/tmp/restore_verbose_$$.log"
+    
+    log_message "INFO" "Début restauration: $selected_schema -> $new_schema_name (backup: $selected_date)"
     
     # Affichage du début de la restauration
     echo ""
@@ -269,6 +313,7 @@ function restore_schema() {
     gunzip -c "$backup_file" > "$temp_file"
     if [ $? -ne 0 ]; then
         echo -e "${RED}❌ Erreur lors de la décompression${NC}"
+        log_message "ERROR" "Échec décompression: $backup_file"
         rm -f "$temp_file"
         exit 1
     fi
@@ -305,6 +350,7 @@ function restore_schema() {
     psql -c "CREATE SCHEMA IF NOT EXISTS \"$new_schema_name\";" 2>/dev/null
     if [ $? -ne 0 ]; then
         echo -e "${RED}❌ Erreur lors de la création du schéma${NC}"
+        log_message "ERROR" "Échec création schéma: $new_schema_name"
         rm -f "$temp_file"
         exit 1
     fi
@@ -318,7 +364,7 @@ function restore_schema() {
     
     # Exécuter le SQL complet et capturer les erreurs
     local restore_errors=""
-    restore_errors=$(psql -v ON_ERROR_STOP=0 -f "$temp_file" 2>&1 | tee /tmp/restore_verbose_$$.log)
+    restore_errors=$(psql -v ON_ERROR_STOP=0 -f "$temp_file" 2>&1 | tee "$verbose_log")
     
     local end_time_global=$(date +%s)
     local total_duration=$((end_time_global - start_time_global))
@@ -355,8 +401,9 @@ function restore_schema() {
     echo -e "      ${GREEN}────────────────────────────────────────────────${NC}"
     echo -e "      📊 Total : ${BLUE}$total_tables tables${NC} | ${GREEN}$total_rows lignes${NC} | ⏱️  ${YELLOW}${total_duration}s${NC}"
     
-    # Nettoyage
+    # Nettoyage des fichiers temporaires
     rm -f "$temp_file"
+    rm -f "$verbose_log"
     
     # Vérification finale
     local table_count=$(psql -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '$new_schema_name'" 2>/dev/null | tr -d ' ')
@@ -369,6 +416,9 @@ function restore_schema() {
     echo -e "${GREEN}║${NC} Tables restaurées: ${BLUE}$table_count${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
+    
+    # Log de fin
+    log_message "SUCCESS" "Restauration terminée: $new_schema_name ($table_count tables, $total_rows lignes, ${total_duration}s)"
 }
 
 # -----------------------------------------------------------------------------
@@ -383,6 +433,8 @@ function main() {
     echo -e "${NC}"
     
     check_dependencies
+    init_log
+    cleanup_temp_files
     load_env
     select_date_folder
     select_schema
