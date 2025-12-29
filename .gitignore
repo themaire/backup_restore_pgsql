@@ -1,0 +1,16 @@
+# Fichier de credentials (contient les mots de passe)
+.env
+
+# Fichiers système
+*.log
+*.tmp
+
+# Backups locaux (ne pas versionner les données)
+backups/
+
+# Fichiers éditeur
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
