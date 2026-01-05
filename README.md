@@ -20,7 +20,7 @@ Scripts Bash de sauvegarde et de restauration de bases PostgreSQL avec gestion f
 - ✅ Rotation automatique des backups avec rétention intelligente
 - ✅ Gestion sécurisée des credentials via fichier `.env`
 
-- ✅ Restauration de schéma. Un menu interractif vous aide à restauer un schéma précedement sauvegardé.
+- ✅ Restauration de schéma. Un menu interractif vous aide à restaurer un schéma précedement sauvegardé.
 ![Menu de sélection du schema a restaurer](pictures/restaur_menu_2.png)
 
 ## 🚀 Installation
